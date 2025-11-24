@@ -1,0 +1,211 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            package_cmd: make pkg-macos
+            package_name: g0-${{ github.ref_name }}-darwin-amd64.pkg
+            package_path: dist/g0-*.pkg
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            package_cmd: make pkg-windows
+            package_name: g0-${{ github.ref_name }}-windows-amd64.zip
+            package_path: dist/g0-*-windows-amd64.zip
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            package_cmd: make pkg-linux
+            package_name: g0-${{ github.ref_name }}-linux-amd64.tar.gz
+            package_path: dist/g0-*-linux-amd64.tar.gz
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -o g0 main.go
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            mv g0 g0.exe
+          fi
+
+      - name: Create package directory
+        run: |
+          mkdir -p dist/package
+          if [ "${{ matrix.goos }}" = "darwin" ]; then
+            mkdir -p dist/package/usr/local/bin
+            cp g0 dist/package/usr/local/bin/
+            chmod +x dist/package/usr/local/bin/g0
+          elif [ "${{ matrix.goos }}" = "windows" ]; then
+            mkdir -p dist/windows
+            cp g0.exe dist/windows/
+            cp README.md dist/windows/
+            cp LICENSE dist/windows/ 2>/dev/null || true
+          else
+            mkdir -p dist/linux
+            cp g0 dist/linux/
+            cp README.md dist/linux/
+            cp LICENSE dist/linux/ 2>/dev/null || true
+          fi
+
+      - name: Create macOS package
+        if: matrix.goos == 'darwin'
+        run: |
+          # Install pkgbuild tools (already available on macOS runners)
+          mkdir -p dist/pkg/usr/local/bin
+          cp g0 dist/pkg/usr/local/bin/
+          chmod +x dist/pkg/usr/local/bin/g0
+          
+          # Extract version from tag (remove 'v' prefix)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          if [ -z "$VERSION" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          
+          # Create component package
+          pkgbuild --root dist/pkg \
+            --identifier com.g0.loadtester \
+            --version "$VERSION" \
+            --install-location / \
+            --ownership recommended \
+            dist/component.pkg
+          
+          # Create Distribution.xml
+          cat > dist/Distribution.xml << EOF
+          <?xml version="1.0" encoding="utf-8"?>
+          <installer-gui-script minSpecVersion="1">
+              <title>g0 Load Tester</title>
+              <organization>com.g0.loadtester</organization>
+              <domains enable_localSystem="true"/>
+              <options customize="never" require-scripts="false" rootVolumeOnly="true" />
+              <pkg-ref id="com.g0.loadtester">
+                  <bundle-version>
+                      <string>$VERSION</string>
+                  </bundle-version>
+              </pkg-ref>
+              <choices-outline>
+                  <line choice="default">
+                      <line choice="com.g0.loadtester"/>
+                  </line>
+              </choices-outline>
+              <choice id="default"/>
+              <choice id="com.g0.loadtester" visible="false">
+                  <pkg-ref id="com.g0.loadtester"/>
+              </choice>
+              <pkg-ref id="com.g0.loadtester" version="$VERSION" onConclusion="none">component.pkg</pkg-ref>
+          </installer-gui-script>
+          EOF
+          
+          # Create Resources
+          mkdir -p dist/Resources
+          cat > dist/Resources/README.txt << EOF
+          Package: g0 Load Tester
+          Version: $VERSION
+          Organization: g0
+          Repository: https://github.com/${{ github.repository }}
+          Author: Calumma Team
+          
+          Description: High-performance HTTP load testing tool
+          EOF
+          
+          # Build final package
+          productbuild --distribution dist/Distribution.xml \
+            --package-path dist \
+            --resources dist/Resources \
+            dist/g0-${VERSION}.pkg
+
+      - name: Create Windows package
+        if: matrix.goos == 'windows'
+        run: |
+          cd dist/windows
+          zip -r ../g0-${{ github.ref_name }}-windows-amd64.zip . -x "*.DS_Store"
+          cd ../..
+
+      - name: Create Linux package
+        if: matrix.goos == 'linux'
+        run: |
+          cd dist
+          tar -czf g0-${{ github.ref_name }}-linux-amd64.tar.gz -C linux g0 README.md LICENSE 2>/dev/null || tar -czf g0-${{ github.ref_name }}-linux-amd64.tar.gz -C linux g0 README.md
+          cd ..
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package_name }}
+          path: ${{ matrix.package_path }}
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          if [ -z "$VERSION" ]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## g0 Load Tester ${{ steps.version.outputs.version }}
+            
+            ### Downloads
+            
+            - **macOS**: [g0-${{ steps.version.outputs.version }}.pkg](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/g0-${{ steps.version.outputs.version }}.pkg)
+            - **Windows**: [g0-${{ steps.version.outputs.version }}-windows-amd64.zip](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/g0-${{ steps.version.outputs.version }}-windows-amd64.zip)
+            - **Linux**: [g0-${{ steps.version.outputs.version }}-linux-amd64.tar.gz](https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/g0-${{ steps.version.outputs.version }}-linux-amd64.tar.gz)
+            
+            ### Installation
+            
+            See [README.md](https://github.com/${{ github.repository }}/blob/main/README.md#installation) for installation instructions.
+            
+            ### Changes
+            
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          files: |
+            artifacts/**/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

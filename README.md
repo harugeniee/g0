@@ -262,6 +262,37 @@ g0/
 - [ ] Custom metrics and tags
 - [ ] Integration with monitoring systems
 
+## Automated Releases
+
+This project uses GitHub Actions to automatically build and create releases when you push a version tag.
+
+### How to Create a Release
+
+1. **Create and push a version tag:**
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+2. **GitHub Actions will automatically:**
+   - Build binaries for macOS, Windows, and Linux
+   - Create packages (.pkg, .zip, .tar.gz)
+   - Create a GitHub Release with all artifacts attached
+   - Generate release notes
+
+3. **Manual trigger (optional):**
+   - Go to Actions tab in GitHub
+   - Select "Build and Release" workflow
+   - Click "Run workflow" to manually trigger
+
+### Release Workflow
+
+The workflow (`.github/workflows/release.yml`) will:
+- Build for all platforms in parallel
+- Create platform-specific packages
+- Upload artifacts
+- Create a GitHub Release with download links
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
