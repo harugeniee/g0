@@ -141,11 +141,12 @@ jobs:
 
       - name: Create Windows package
         if: matrix.goos == 'windows'
-        shell: bash
+        shell: pwsh
         run: |
-          cd dist/windows
-          zip -r ../g0-${{ github.ref_name }}-windows-amd64.zip . -x "*.DS_Store"
-          cd ../..
+          $version = "${{ github.ref_name }}"
+          $zipFile = "dist\g0-$version-windows-amd64.zip"
+          Compress-Archive -Path "dist\windows\*" -DestinationPath $zipFile -Force
+          Write-Host "Created package: $zipFile"
 
       - name: Create Linux package
         if: matrix.goos == 'linux'
