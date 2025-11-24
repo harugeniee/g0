@@ -13,19 +13,113 @@ A minimal, high-performance HTTP load tester written in Go. Inspired by k6, but 
 
 ## Installation
 
+### Pre-built Packages
+
+Download pre-built binaries for your platform:
+
+- **macOS**: [g0-1.0.0.pkg](dist/g0-1.0.0.pkg) - macOS installer package
+- **Windows**: [g0-1.0.0-windows-amd64.zip](dist/g0-1.0.0-windows-amd64.zip) - Windows zip archive
+- **Linux**: [g0-1.0.0-linux-amd64.tar.gz](dist/g0-1.0.0-linux-amd64.tar.gz) - Linux tar.gz archive
+
+#### macOS Installation
+
+```bash
+# Install using the .pkg installer
+sudo installer -pkg g0-1.0.0.pkg -target /
+
+# Or use make
+make install-pkg
+```
+
+#### Windows Installation
+
+1. Download `g0-1.0.0-windows-amd64.zip`
+2. Extract the zip file
+3. Run `g0.exe` from Command Prompt or PowerShell
+
+#### Linux Installation
+
+```bash
+# Extract the archive
+tar -xzf g0-1.0.0-linux-amd64.tar.gz
+
+# Make it executable (if needed)
+chmod +x g0
+
+# Run it
+./g0 --help
+```
+
 ### Build from Source
+
+#### Prerequisites
+
+- Go 1.21 or later
+- Make (optional, for using Makefile)
+
+#### Quick Build
 
 ```bash
 # Clone the repository
 git clone https://github.com/calummacc/g0.git
 cd g0
 
-# Build the binary
-go build -o g0 main.go
+# Build for your current platform
+make build
 
-# Or install directly
-go install
+# Or build directly with Go
+go build -o g0 main.go
 ```
+
+#### Cross-Platform Builds
+
+The Makefile provides convenient commands to build for different platforms:
+
+**macOS:**
+```bash
+make build-macos    # Build macOS binary
+make pkg-macos      # Create macOS installer package (.pkg)
+make dmg            # Create macOS disk image (.dmg)
+```
+
+**Windows:**
+```bash
+make build-windows  # Build Windows binary (.exe)
+make pkg-windows    # Create Windows package (.zip)
+```
+
+**Linux:**
+```bash
+make build-linux    # Build Linux binary
+make pkg-linux      # Create Linux package (.tar.gz)
+```
+
+**All Platforms:**
+```bash
+# Build for all platforms
+make build-macos build-windows build-linux
+
+# Create packages for all platforms
+make pkg-macos pkg-windows pkg-linux
+```
+
+#### Available Make Targets
+
+| Command | Description |
+|---------|-------------|
+| `make build` | Build for current platform |
+| `make build-macos` | Build macOS binary |
+| `make build-windows` | Build Windows binary (.exe) |
+| `make build-linux` | Build Linux binary |
+| `make pkg-macos` | Create macOS installer (.pkg) |
+| `make pkg-windows` | Create Windows package (.zip) |
+| `make pkg-linux` | Create Linux package (.tar.gz) |
+| `make dmg` | Create macOS disk image (.dmg) |
+| `make install-pkg` | Install macOS package (requires sudo) |
+| `make clean` | Remove build artifacts |
+| `make clean-pkg` | Remove package artifacts |
+| `make test` | Run test suite |
+| `make help` | Show all available targets |
 
 ### Using Go Install
 
