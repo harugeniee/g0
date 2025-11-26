@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"time"
@@ -35,6 +36,7 @@ type Request struct {
 	URL     string
 	Body    string
 	Headers map[string]string
+	Context context.Context // Context for request cancellation
 }
 
 // Response represents the result of an HTTP request
@@ -53,7 +55,14 @@ func (c *Client) Do(req Request) Response {
 		bodyReader = bytes.NewBufferString(req.Body)
 	}
 
-	httpReq, err := http.NewRequest(req.Method, req.URL, bodyReader)
+	// Use context-aware request creation to support cancellation
+	// If no context is provided, use context.Background()
+	ctx := req.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, req.Method, req.URL, bodyReader)
 	if err != nil {
 		return Response{
 			StatusCode: 0,

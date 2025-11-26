@@ -55,9 +55,10 @@ func (w *Worker) Start(ctx context.Context) {
 			continue
 		}
 
-		// Create request with selected URL
+		// Create request with selected URL and context for cancellation
 		request := w.request
 		request.URL = selectedURL
+		request.Context = ctx // Pass context to enable request cancellation
 
 		// Send request
 		resp := w.client.Do(request)
