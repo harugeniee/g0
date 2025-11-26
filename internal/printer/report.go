@@ -1,8 +1,10 @@
 package printer
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -146,4 +148,146 @@ func formatDurationShort(d time.Duration) string {
 	minutes := int(d.Minutes())
 	seconds := int(d.Seconds()) % 60
 	return fmt.Sprintf("%dm%ds", minutes, seconds)
+}
+
+// JSONOutput represents the JSON structure for test results
+type JSONOutput struct {
+	Metadata JSONMetadata `json:"metadata"`
+	Metrics  JSONMetrics  `json:"metrics"`
+}
+
+// JSONMetadata contains test configuration and timing information
+type JSONMetadata struct {
+	URL         string            `json:"url"`
+	Method      string            `json:"method"`
+	Concurrency int               `json:"concurrency"`
+	Duration    string            `json:"duration"`
+	DurationMs  int64             `json:"duration_ms"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	StartTime   string            `json:"start_time,omitempty"`
+	EndTime     string            `json:"end_time,omitempty"`
+}
+
+// JSONMetrics contains all test metrics
+type JSONMetrics struct {
+	Requests    JSONRequests     `json:"requests"`
+	Latency     JSONLatency      `json:"latency"`
+	StatusCodes map[string]int64 `json:"status_codes"`
+}
+
+// JSONRequests contains request statistics
+type JSONRequests struct {
+	Total   int64   `json:"total"`
+	Success int64   `json:"success"`
+	Failed  int64   `json:"failed"`
+	RPS     float64 `json:"rps"`
+}
+
+// JSONLatency contains latency statistics
+type JSONLatency struct {
+	Min JSONDuration `json:"min"`
+	Max JSONDuration `json:"max"`
+	Avg JSONDuration `json:"avg"`
+	P90 JSONDuration `json:"p90"`
+	P95 JSONDuration `json:"p95"`
+	P99 JSONDuration `json:"p99"`
+}
+
+// JSONDuration represents a duration in both human-readable and numeric formats
+type JSONDuration struct {
+	Value string  `json:"value"` // Human-readable format (e.g., "12.45ms")
+	Ms    float64 `json:"ms"`    // Duration in milliseconds
+}
+
+// PrintResultsJSON prints the test results in JSON format and saves to file
+// Returns the file path where JSON was saved
+func PrintResultsJSON(summary *runner.Summary, url string, concurrency int, duration time.Duration, method string, headers map[string]string, outputFile string) (string, error) {
+	// Convert status codes map from int keys to string keys for JSON
+	// Status code 0 represents network/connection errors
+	statusCodes := make(map[string]int64)
+	for code, count := range summary.StatusCodeCounts {
+		if code == 0 {
+			// Use "error" or "0" for network errors to make it clearer
+			statusCodes["error"] = count
+		} else {
+			statusCodes[fmt.Sprintf("%d", code)] = count
+		}
+	}
+
+	// Build JSON output structure
+	output := JSONOutput{
+		Metadata: JSONMetadata{
+			URL:         url,
+			Method:      method,
+			Concurrency: concurrency,
+			Duration:    duration.String(),
+			DurationMs:  duration.Milliseconds(),
+			Headers:     headers,
+		},
+		Metrics: JSONMetrics{
+			Requests: JSONRequests{
+				Total:   summary.TotalRequests,
+				Success: summary.SuccessRequests,
+				Failed:  summary.FailedRequests,
+				RPS:     summary.RPS,
+			},
+			Latency: JSONLatency{
+				Min: durationToJSON(summary.MinLatency),
+				Max: durationToJSON(summary.MaxLatency),
+				Avg: durationToJSON(summary.AvgLatency),
+				P90: durationToJSON(summary.P90Latency),
+				P95: durationToJSON(summary.P95Latency),
+				P99: durationToJSON(summary.P99Latency),
+			},
+			StatusCodes: statusCodes,
+		},
+	}
+
+	// Marshal to JSON with indentation for readability
+	jsonBytes, err := json.MarshalIndent(output, "", "  ")
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+
+	// Determine output file path
+	var filePath string
+	if outputFile != "" {
+		// Use user-specified file path
+		filePath = outputFile
+		// Create directory if it doesn't exist
+		dir := filepath.Dir(filePath)
+		if dir != "." && dir != "" {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				return "", fmt.Errorf("failed to create output directory: %w", err)
+			}
+		}
+	} else {
+		// Generate default file path in results/ directory
+		resultsDir := "results"
+		if err := os.MkdirAll(resultsDir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create results directory: %w", err)
+		}
+
+		// Generate filename with timestamp: g0-result-YYYYMMDD-HHMMSS.json
+		timestamp := time.Now().Format("20060102-150405")
+		filePath = filepath.Join(resultsDir, fmt.Sprintf("g0-result-%s.json", timestamp))
+	}
+
+	// Write JSON to file
+	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
+		return "", fmt.Errorf("failed to write JSON file: %w", err)
+	}
+
+	// Don't print JSON to stdout - results are already shown in text format
+	// JSON is only saved to file
+
+	return filePath, nil
+}
+
+// durationToJSON converts a time.Duration to JSONDuration format
+func durationToJSON(d time.Duration) JSONDuration {
+	return JSONDuration{
+		Value: formatDuration(d),
+		Ms:    float64(d.Nanoseconds()) / 1000000.0, // Convert to milliseconds
+	}
 }

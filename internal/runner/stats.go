@@ -48,9 +48,16 @@ func (s *Stats) AddResult(result Result) {
 		s.SuccessRequests++
 	}
 
-	if result.StatusCode > 0 {
+	// Record status code, including 0 for network errors
+	// StatusCode 0 indicates network/connection errors (not HTTP status codes)
+	if result.Error != nil && result.StatusCode == 0 {
+		// Network error: use 0 to represent connection/network errors
+		s.StatusCodeCounts[0]++
+	} else if result.StatusCode > 0 {
+		// Valid HTTP status code
 		s.StatusCodeCounts[result.StatusCode]++
 	}
+	// Note: If StatusCode is 0 and Error is nil, it shouldn't happen in normal flow
 }
 
 // Finalize marks the end of the test

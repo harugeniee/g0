@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -17,6 +18,8 @@ var (
 	method      string
 	body        string
 	headers     []string
+	jsonOutput  bool
+	outputFile  string
 )
 
 var runCmd = &cobra.Command{
@@ -39,6 +42,8 @@ func init() {
 	runCmd.Flags().StringVarP(&method, "method", "m", "GET", "HTTP method")
 	runCmd.Flags().StringVarP(&body, "body", "b", "", "Request body")
 	runCmd.Flags().StringArrayVarP(&headers, "headers", "H", []string{}, "HTTP headers (can be specified multiple times)")
+	runCmd.Flags().BoolVarP(&jsonOutput, "json", "j", false, "Output results in JSON format")
+	runCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file path for JSON results (default: results/g0-result-YYYYMMDD-HHMMSS.json)")
 
 	runCmd.MarkFlagRequired("url")
 }
@@ -189,9 +194,17 @@ func runLoadTest(cmd *cobra.Command, args []string) error {
 		fmt.Println() // Add a newline after clearing progress
 	}
 
-	// Print results
+	// Print results in text format
 	printer.PrintResults(result.Summary)
+	
+	// If JSON output is enabled, also save to file
+	if jsonOutput {
+		filePath, err := printer.PrintResultsJSON(result.Summary, url, concurrency, testDuration, method, headerMap, outputFile)
+		if err != nil {
+			return fmt.Errorf("failed to save JSON output: %w", err)
+		}
+		fmt.Fprintf(os.Stderr, "\nResults saved to: %s\n", filePath)
+	}
 
 	return nil
 }
-

@@ -108,6 +108,8 @@ Flags:
   -m, --method string     HTTP method (default "GET")
   -b, --body string       Request body
   -H, --headers strings   HTTP headers (can be specified multiple times)
+  -j, --json              Output results in JSON format
+  -o, --output string     Output file path for JSON results (default: results/g0-result-YYYYMMDD-HHMMSS.json)
 ```
 
 ### Examples
@@ -134,6 +136,71 @@ g0 run --url https://api.example.com \
   --headers "X-Custom-Header: value" \
   --c 200 \
   --d 1m
+```
+
+**JSON output format:**
+```bash
+# JSON output (automatically saved to results/ directory)
+g0 run --url https://api.example.com --c 50 --d 10s --json
+
+# JSON output with custom file path
+g0 run --url https://api.example.com --c 50 --d 10s --json --output my-results.json
+
+# JSON output to specific directory
+g0 run --url https://api.example.com --c 50 --d 10s --json --output reports/test-result.json
+```
+
+When using `--json`, the results are automatically saved to a file in the `results/` directory with a timestamp-based filename (e.g., `results/g0-result-20240101-120000.json`). You can also specify a custom output path using the `--output` flag. The JSON output includes all metrics in a structured format, making it easy to parse and integrate with other tools or scripts. Example output:
+
+```json
+{
+  "metadata": {
+    "url": "https://api.example.com",
+    "method": "GET",
+    "concurrency": 50,
+    "duration": "10s",
+    "duration_ms": 10000,
+    "headers": {}
+  },
+  "metrics": {
+    "requests": {
+      "total": 12004,
+      "success": 11800,
+      "failed": 204,
+      "rps": 1200.4
+    },
+    "latency": {
+      "min": {
+        "value": "5.23ms",
+        "ms": 5.23
+      },
+      "max": {
+        "value": "85.12ms",
+        "ms": 85.12
+      },
+      "avg": {
+        "value": "12.45ms",
+        "ms": 12.45
+      },
+      "p90": {
+        "value": "20.34ms",
+        "ms": 20.34
+      },
+      "p95": {
+        "value": "24.56ms",
+        "ms": 24.56
+      },
+      "p99": {
+        "value": "40.78ms",
+        "ms": 40.78
+      }
+    },
+    "status_codes": {
+      "200": 11800,
+      "500": 204
+    }
+  }
+}
 ```
 
 ## Output Format
@@ -208,8 +275,8 @@ g0/
 ## Future Improvements (v2/v3)
 
 ### v2 Features
-- [ ] Real-time progress updates during test execution
-- [ ] JSON output format option
+- [x] Real-time progress updates during test execution
+- [x] JSON output format option
 - [ ] Request rate limiting (e.g., max RPS)
 - [ ] Support for multiple URLs/endpoints
 - [ ] Request timeout configuration
