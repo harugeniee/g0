@@ -9,18 +9,20 @@ import (
 // Worker sends HTTP requests in a loop until the context is cancelled
 type Worker struct {
 	client      *httpclient.Client
-	request     httpclient.Request
+	request     httpclient.Request // Base request config (URL will be selected dynamically)
 	results     chan<- Result
 	rateLimiter *RateLimiter
+	urlRotator  *URLRotator // For selecting URL in round-robin fashion
 }
 
 // NewWorker creates a new worker
-func NewWorker(client *httpclient.Client, request httpclient.Request, results chan<- Result, rateLimiter *RateLimiter) *Worker {
+func NewWorker(client *httpclient.Client, request httpclient.Request, results chan<- Result, rateLimiter *RateLimiter, urlRotator *URLRotator) *Worker {
 	return &Worker{
 		client:      client,
 		request:     request,
 		results:     results,
 		rateLimiter: rateLimiter,
+		urlRotator:  urlRotator,
 	}
 }
 
@@ -46,8 +48,19 @@ func (w *Worker) Start(ctx context.Context) {
 			return
 		}
 
+		// Select URL from rotator (round-robin)
+		selectedURL := w.urlRotator.Next()
+		if selectedURL == "" {
+			// No URL available, skip
+			continue
+		}
+
+		// Create request with selected URL
+		request := w.request
+		request.URL = selectedURL
+
 		// Send request
-		resp := w.client.Do(w.request)
+		resp := w.client.Do(request)
 
 		// Check context again before sending result (request might have taken time)
 		select {

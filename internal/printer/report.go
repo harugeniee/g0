@@ -25,9 +25,16 @@ func PrintLogo() {
 }
 
 // PrintTestStart prints the test configuration
-func PrintTestStart(url string, concurrency int, duration time.Duration) {
+func PrintTestStart(urls []string, concurrency int, duration time.Duration) {
 	fmt.Println("Load Test Started")
-	fmt.Printf("URL: %s\n", url)
+	if len(urls) == 1 {
+		fmt.Printf("URL: %s\n", urls[0])
+	} else {
+		fmt.Printf("URLs (%d endpoints):\n", len(urls))
+		for i, url := range urls {
+			fmt.Printf("  %d. %s\n", i+1, url)
+		}
+	}
 	fmt.Printf("Concurrency: %d\n", concurrency)
 	fmt.Printf("Duration: %s\n", duration)
 	fmt.Println()
@@ -158,7 +165,8 @@ type JSONOutput struct {
 
 // JSONMetadata contains test configuration and timing information
 type JSONMetadata struct {
-	URL         string            `json:"url"`
+	URL         string            `json:"url,omitempty"`         // Single URL (if only one)
+	URLs        []string          `json:"urls,omitempty"`        // Multiple URLs (if more than one)
 	Method      string            `json:"method"`
 	Concurrency int               `json:"concurrency"`
 	Duration    string            `json:"duration"`
@@ -201,7 +209,7 @@ type JSONDuration struct {
 
 // PrintResultsJSON prints the test results in JSON format and saves to file
 // Returns the file path where JSON was saved
-func PrintResultsJSON(summary *runner.Summary, url string, concurrency int, duration time.Duration, method string, headers map[string]string, outputFile string) (string, error) {
+func PrintResultsJSON(summary *runner.Summary, urls []string, concurrency int, duration time.Duration, method string, headers map[string]string, outputFile string) (string, error) {
 	// Convert status codes map from int keys to string keys for JSON
 	// Status code 0 represents network/connection errors
 	statusCodes := make(map[string]int64)
@@ -215,15 +223,23 @@ func PrintResultsJSON(summary *runner.Summary, url string, concurrency int, dura
 	}
 
 	// Build JSON output structure
+	metadata := JSONMetadata{
+		Method:      method,
+		Concurrency: concurrency,
+		Duration:    duration.String(),
+		DurationMs:  duration.Milliseconds(),
+		Headers:     headers,
+	}
+	
+	// Set URL or URLs based on count
+	if len(urls) == 1 {
+		metadata.URL = urls[0]
+	} else {
+		metadata.URLs = urls
+	}
+	
 	output := JSONOutput{
-		Metadata: JSONMetadata{
-			URL:         url,
-			Method:      method,
-			Concurrency: concurrency,
-			Duration:    duration.String(),
-			DurationMs:  duration.Milliseconds(),
-			Headers:     headers,
-		},
+		Metadata: metadata,
 		Metrics: JSONMetrics{
 			Requests: JSONRequests{
 				Total:   summary.TotalRequests,

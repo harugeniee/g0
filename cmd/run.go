@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	url         string
+	urls        []string
 	concurrency int
 	duration    string
 	method      string
@@ -37,7 +37,7 @@ Example:
 func init() {
 	rootCmd.AddCommand(runCmd)
 
-	runCmd.Flags().StringVarP(&url, "url", "u", "", "Target URL (required)")
+	runCmd.Flags().StringArrayVarP(&urls, "url", "u", []string{}, "Target URL(s) - can be specified multiple times (required)")
 	runCmd.Flags().IntVarP(&concurrency, "concurrency", "c", 10, "Number of concurrent workers")
 	runCmd.Flags().StringVarP(&duration, "duration", "d", "10s", "Test duration (e.g., 10s, 1m, 30s)")
 	runCmd.Flags().StringVarP(&method, "method", "m", "GET", "HTTP method")
@@ -55,6 +55,11 @@ func runLoadTest(cmd *cobra.Command, args []string) error {
 	testDuration, err := time.ParseDuration(duration)
 	if err != nil {
 		return fmt.Errorf("invalid duration format: %w", err)
+	}
+
+	// Validate URLs
+	if len(urls) == 0 {
+		return fmt.Errorf("at least one URL is required (use --url or -u)")
 	}
 
 	// Validate concurrency
@@ -78,7 +83,7 @@ func runLoadTest(cmd *cobra.Command, args []string) error {
 	printer.PrintLogo()
 
 	// Print test configuration
-	printer.PrintTestStart(url, concurrency, testDuration)
+	printer.PrintTestStart(urls, concurrency, testDuration)
 
 	// Validate max RPS if specified
 	if maxRPS < 0 {
@@ -87,7 +92,7 @@ func runLoadTest(cmd *cobra.Command, args []string) error {
 
 	// Create and run the load test
 	config := runner.Config{
-		URL:         url,
+		URLs:        urls,
 		Concurrency: concurrency,
 		Duration:    testDuration,
 		Method:      method,
@@ -207,7 +212,7 @@ func runLoadTest(cmd *cobra.Command, args []string) error {
 	
 	// If JSON output is enabled, also save to file
 	if jsonOutput {
-		filePath, err := printer.PrintResultsJSON(result.Summary, url, concurrency, testDuration, method, headerMap, outputFile)
+		filePath, err := printer.PrintResultsJSON(result.Summary, urls, concurrency, testDuration, method, headerMap, outputFile)
 		if err != nil {
 			return fmt.Errorf("failed to save JSON output: %w", err)
 		}

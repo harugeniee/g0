@@ -102,7 +102,7 @@ g0 run --url https://api.example.com --c 100 --d 10s
 
 ```
 Flags:
-  -u, --url string        Target URL (required)
+  -u, --url stringArray  Target URL(s) - can be specified multiple times (required)
   -c, --concurrency int   Number of concurrent workers (default 10)
   -d, --duration string   Test duration (e.g., 10s, 1m, 30s) (default "10s")
   -m, --method string     HTTP method (default "GET")
@@ -159,6 +159,20 @@ g0 run --url https://api.example.com --c 50 --d 10s --max-rps 100
 # No rate limiting (default, workers send requests as fast as possible)
 g0 run --url https://api.example.com --c 50 --d 10s
 ```
+
+**Multiple URLs/endpoints:**
+```bash
+# Test multiple endpoints with round-robin distribution
+g0 run --url https://api.example.com/v1/users --url https://api.example.com/v1/posts --url https://api.example.com/v1/comments -c 50 -d 10s
+
+# Test different endpoints with different status codes
+g0 run --url https://httpbin.org/get --url https://httpbin.org/status/200 --url https://httpbin.org/status/404 -c 20 -d 5s
+
+# Multiple URLs with rate limiting
+g0 run --url https://api.example.com/endpoint1 --url https://api.example.com/endpoint2 -c 50 -d 10s --max-rps 100
+```
+
+When multiple URLs are specified, requests are distributed in round-robin fashion across all endpoints. This allows you to test load balancing, different API endpoints, or compare performance across multiple services.
 
 When using `--json`, the results are automatically saved to a file in the `results/` directory with a timestamp-based filename (e.g., `results/g0-result-20240101-120000.json`). You can also specify a custom output path using the `--output` flag. The JSON output includes all metrics in a structured format, making it easy to parse and integrate with other tools or scripts. Example output:
 
@@ -288,7 +302,7 @@ g0/
 - [x] Real-time progress updates during test execution
 - [x] JSON output format option
 - [x] Request rate limiting (e.g., max RPS)
-- [ ] Support for multiple URLs/endpoints
+- [x] Support for multiple URLs/endpoints
 - [ ] Request timeout configuration
 - [ ] TLS/SSL configuration options
 - [ ] Basic authentication support
